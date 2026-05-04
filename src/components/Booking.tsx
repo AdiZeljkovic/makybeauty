@@ -2,6 +2,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { Check, ChevronLeft, ChevronRight, Clock, Scissors, Calendar as CalendarIcon, Loader2, AlertCircle } from 'lucide-react';
 
+const TIME_SLOTS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
+
 const SERVICES = [
   'Profesionalna nega noktiju', 'Gel lak / izlivanje', 'Pedikir',
   'Depilacija lica', 'Depilacija tela', 'Ekstra volumen trepavice', 'Prirodne trepavice',
@@ -139,21 +141,32 @@ export default function Booking() {
                     <p className="text-sm font-medium text-neutral-500">Unesite podatke i odaberite tretman</p>
                   </div>
 
-                  <div className="flex flex-col gap-4">
-                    <input
-                      type="text"
-                      placeholder="Ime i prezime..."
-                      value={clientName}
-                      onChange={e => setClientName(e.target.value)}
-                      className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Broj telefona..."
-                      value={clientPhone}
-                      onChange={e => setClientPhone(e.target.value)}
-                      className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
-                    />
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-neutral-500 flex items-center gap-1">
+                        Ime i prezime <span className="text-gold">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ana Marić..."
+                        value={clientName}
+                        onChange={e => setClientName(e.target.value)}
+                        className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-neutral-500 flex items-center gap-1">
+                        Broj telefona <span className="text-gold">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="+381 60 000 0000..."
+                        value={clientPhone}
+                        onChange={e => setClientPhone(e.target.value)}
+                        className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
+                      />
+                    </div>
+                    <p className="text-xs text-neutral-400 font-medium"><span className="text-gold">*</span> Obavezna polja</p>
 
                     <div className="flex flex-col gap-3 mt-2">
                       <span className="text-sm font-bold text-neutral-700 mb-1">Usluga</span>
@@ -195,13 +208,14 @@ export default function Booking() {
                         const d = i + 1;
                         const dStr = generateDateStr(d);
                         const past = isPastDate(d);
+                        const isSunday = new Date(currentYear, currentMonth, d).getDay() === 0;
                         return (
                           <button
                             key={d}
-                            disabled={past}
+                            disabled={past || isSunday}
                             onClick={() => setSelectedDateStr(dStr)}
                             className={`aspect-square flex items-center justify-center text-sm md:text-base rounded-xl transition-all font-bold ${
-                              past
+                              past || isSunday
                                 ? 'text-neutral-300 cursor-not-allowed'
                                 : selectedDateStr === dStr
                                 ? 'bg-gold text-white shadow-[0_8px_20px_rgba(200,169,126,0.3)] scale-[1.08] relative z-10'

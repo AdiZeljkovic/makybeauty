@@ -33,12 +33,12 @@ export default function Gallery() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-neutral-200/60 pb-8">
         <h2 className="serif text-5xl md:text-7xl font-bold text-neutral-900">Galerija</h2>
         <a 
-          href="https://instagram.com/maky_beauty_zr"
-          target="_blank" 
+          href="https://www.instagram.com/maky_beauty_bar?utm_source=qr&igsh=NDB6NnZjdmdtaTI2"
+          target="_blank"
           rel="noopener noreferrer"
           className="text-sm md:text-base font-semibold text-gold hover:text-neutral-900 transition-colors underline underline-offset-4"
         >
-          @maky_beauty_zr
+          @maky_beauty_bar
         </a>
       </div>
 

@@ -7,7 +7,7 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
-const ALL_SLOTS = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+const ALL_SLOTS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
 
 export type BookingRow = {
   id: string;

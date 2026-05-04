@@ -43,10 +43,10 @@ export default function Header() {
       </nav>
 
       <div className="flex items-center justify-end gap-6 flex-1">
-        <a href="tel:+38123555000" className="p-2.5 rounded-full hover:bg-neutral-100 text-neutral-600 hover:text-gold transition-all duration-300">
+        <a href="tel:+381653557366" className="p-2.5 rounded-full hover:bg-neutral-100 text-neutral-600 hover:text-gold transition-all duration-300">
           <Phone size={18} />
         </a>
-        <a href="https://instagram.com/maky_beauty_zr" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full hover:bg-neutral-100 text-neutral-600 hover:text-gold transition-all duration-300">
+        <a href="https://www.instagram.com/maky_beauty_bar?utm_source=qr&igsh=NDB6NnZjdmdtaTI2" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full hover:bg-neutral-100 text-neutral-600 hover:text-gold transition-all duration-300">
           <Instagram size={18} />
         </a>
         <a 
