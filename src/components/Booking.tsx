@@ -148,7 +148,7 @@ export default function Booking() {
                       </label>
                       <input
                         type="text"
-                        placeholder="Ana Marić..."
+                        placeholder="Vaše ime i prezime..."
                         value={clientName}
                         onChange={e => setClientName(e.target.value)}
                         className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
@@ -160,7 +160,7 @@ export default function Booking() {
                       </label>
                       <input
                         type="tel"
-                        placeholder="+381 60 000 0000..."
+                        placeholder="Vaš broj telefona..."
                         value={clientPhone}
                         onChange={e => setClientPhone(e.target.value)}
                         className="w-full px-5 py-4 border border-neutral-200/80 rounded-xl bg-neutral-50 text-neutral-900 font-medium focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
