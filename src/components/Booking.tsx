@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { Check, ChevronLeft, ChevronRight, Clock, Scissors, Calendar as CalendarIcon, Loader2, AlertCircle } from 'lucide-react';
 
-const TIME_SLOTS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
+const TIME_SLOTS = ['10:00', '12:00', '14:00', '16:00'];
 
 const SERVICES = [
   'Profesionalna nega noktiju', 'Gel lak / izlivanje', 'Pedikir',
