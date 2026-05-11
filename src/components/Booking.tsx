@@ -5,7 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Clock, Scissors, Calendar as Calendar
 const TIME_SLOTS = ['10:00', '12:00', '14:00', '16:00'];
 
 const SERVICES = [
-  'Profesionalna nega noktiju', 'Gel lak / izlivanje', 'Pedikir',
+  'Korekcija noktiju', 'Gel lak / izlivanje', 'Pedikir',
   'Depilacija lica', 'Depilacija tela', 'Ekstra volumen trepavice', 'Prirodne trepavice',
 ];
 
