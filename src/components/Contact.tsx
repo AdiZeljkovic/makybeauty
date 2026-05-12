@@ -20,8 +20,8 @@ const contacts = [
     label: 'Radno vreme',
     value: null,
     hours: [
-      { days: 'Pon – Pet', time: '08:00 – 20:00' },
-      { days: 'Subota', time: '08:00 – 20:00' },
+      { days: 'Pon – Pet', time: '10:00 – 18:00' },
+      { days: 'Subota', time: '10:00 – 18:00' },
       { days: 'Nedjelja', time: 'Zatvoreno', muted: true },
     ],
   },
