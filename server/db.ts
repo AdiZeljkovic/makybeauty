@@ -7,9 +7,16 @@ import { ValidationError } from './validation.js';
 
 const { Pool } = pg;
 
+// SSL se traži u produkciji, osim kad je baza dokazano lokalna: na istom
+// hostu, ili izričito isključena preko standardnog `sslmode=disable`
+// (npr. Postgres kontejner na privatnoj Docker mreži, koji SSL i nema).
+const dbIsLocal =
+  /localhost|127\.0\.0\.1/.test(DATABASE_URL) ||
+  /[?&]sslmode=disable/.test(DATABASE_URL);
+
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' && !/localhost|127\.0\.0\.1/.test(DATABASE_URL)
+  ssl: process.env.NODE_ENV === 'production' && !dbIsLocal
     ? { rejectUnauthorized: true }
     : false,
   max: 10,

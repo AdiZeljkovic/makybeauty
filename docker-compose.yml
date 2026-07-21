@@ -22,7 +22,8 @@ services:
       context: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://maky_user:${DB_PASSWORD}@db:5432/maky_db
+      # sslmode=disable — baza je na privatnoj Docker mreži i ne nudi SSL
+      DATABASE_URL: postgresql://maky_user:${DB_PASSWORD}@db:5432/maky_db?sslmode=disable
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       PORT: "3001"
