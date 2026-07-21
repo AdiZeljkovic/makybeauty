@@ -1,97 +1,74 @@
 import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { initDb, getBookings, getAvailableSlots, createBooking, deleteBooking } from './db.js';
-import { generateToken, verifyToken } from './auth.js';
 
-const app = express();
-const PORT = Number(process.env.PORT) || 3001;
+import { assertEnv, PORT } from './env.js';
+assertEnv(); // Pada odmah ako .env nije ispravan — prije nego što išta krene.
 
-app.use(express.json());
+import { createApp } from './app.js';
+import { initDb, closePool, deleteOldBookings } from './db.js';
 
-const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!verifyToken(token)) {
-    res.status(401).json({ error: 'Neautorizovano' });
-    return;
-  }
-  next();
-};
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// --- Auth ---
-app.post('/api/auth/login', (req: Request, res: Response): void => {
-  const { password } = req.body as { password: string };
-  if (!password || password !== process.env.ADMIN_PASSWORD) {
-    res.status(401).json({ error: 'Pogrešna lozinka' });
-    return;
-  }
-  res.json({ token: generateToken() });
-});
+const RETENTION_MONTHS = 12;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-// --- Available slots (public — returns only free times, no client data) ---
-app.get('/api/bookings/available', async (req: Request, res: Response): Promise<void> => {
-  const { date } = req.query as { date: string };
-  if (!date) { res.status(400).json({ error: 'Datum je obavezan' }); return; }
+/** Periodično briše lične podatke starije od roka čuvanja (vidi pristanak u formi). */
+async function runRetentionCleanup(): Promise<void> {
   try {
-    const availableSlots = await getAvailableSlots(date);
-    res.json({ availableSlots });
-  } catch {
-    res.status(500).json({ error: 'Greška servera' });
+    const removed = await deleteOldBookings(RETENTION_MONTHS);
+    if (removed > 0) {
+      console.log(`[gdpr] Obrisano ${removed} termina starijih od ${RETENTION_MONTHS} mjeseci.`);
+    }
+  } catch (err) {
+    console.error('[gdpr] Čišćenje starih termina nije uspjelo:', err);
   }
-});
-
-// --- Create booking (public) ---
-app.post('/api/bookings', async (req: Request, res: Response): Promise<void> => {
-  const { date, time, service, clientName, clientPhone } = req.body as {
-    date: string; time: string; service: string; clientName: string; clientPhone: string;
-  };
-  if (!date || !time || !service || !clientName || !clientPhone) {
-    res.status(400).json({ error: 'Sva polja su obavezna' });
-    return;
-  }
-  try {
-    const booking = await createBooking({ date, time, service, clientName, clientPhone });
-    res.json(booking);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Greška servera';
-    res.status(409).json({ error: message });
-  }
-});
-
-// --- Get all bookings (admin only) ---
-app.get('/api/bookings', requireAuth, async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const bookings = await getBookings();
-    res.json(bookings);
-  } catch {
-    res.status(500).json({ error: 'Greška servera' });
-  }
-});
-
-// --- Delete booking (admin only) ---
-app.delete('/api/bookings/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    await deleteBooking(req.params.id);
-    res.json({ success: true });
-  } catch {
-    res.status(500).json({ error: 'Greška servera' });
-  }
-});
-
-// --- Serve React build in production ---
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const distPath = path.join(__dirname, '../dist');
-  app.use(express.static(distPath));
-  app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
 }
 
-initDb()
+/** Baza zna kasniti s podizanjem nakon reboota — ne ulazimo u PM2 restart petlju. */
+async function initDbWithRetry(attempts = 5): Promise<void> {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await initDb();
+      return;
+    } catch (err) {
+      if (i === attempts) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      const delay = Math.min(1000 * 2 ** (i - 1), 15_000);
+      console.warn(`[db] Pokušaj ${i}/${attempts} nije uspio (${message}). Ponovo za ${delay}ms...`);
+      await sleep(delay);
+    }
+  }
+}
+
+initDbWithRetry()
   .then(() => {
-    app.listen(PORT, () => console.log(`Server pokrenut na portu ${PORT}`));
+    const app = createApp();
+    const server = app.listen(PORT, () => console.log(`Server pokrenut na portu ${PORT}`));
+
+    void runRetentionCleanup();
+    // unref() — tajmer ne smije držati proces živim pri gašenju.
+    setInterval(() => void runRetentionCleanup(), DAY_MS).unref();
+
+    // Graceful shutdown — zahtjevi u toku se završe prije gašenja.
+    let shuttingDown = false;
+    const shutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`\n${signal} primljen — gasim server...`);
+
+      server.close(() => {
+        closePool()
+          .catch(err => console.error('[db] Greška pri zatvaranju poola:', err))
+          .finally(() => process.exit(0));
+      });
+
+      setTimeout(() => {
+        console.error('Gašenje predugo traje — prisilni izlaz.');
+        process.exit(1);
+      }, 10_000).unref();
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   })
   .catch(err => {
     console.error('Greška pri inicijalizaciji baze:', err);
