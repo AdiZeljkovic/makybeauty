@@ -6,17 +6,12 @@ import {
   Calendar as CalendarIcon, Check, Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  SERVICES, MONTH_NAMES, DAY_NAMES, CLOSED_WEEKDAY,
+  todayStr, toDateStr, weekdayOf, formatDisplayDate,
+} from '../../shared/constants';
 
-const SERVICES = [
-  'Profesionalna nega noktiju', 'Gel lak / izlivanje', 'Pedikir',
-  'Depilacija lica', 'Depilacija tela', 'Ekstra volumen trepavice', 'Prirodne trepavice',
-];
-
-const MONTH_NAMES = [
-  'Januar', 'Februar', 'Mart', 'April', 'Maj', 'Jun',
-  'Jul', 'Avgust', 'Septembar', 'Oktobar', 'Novembar', 'Decembar',
-];
-const DAY_NAMES = ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
+const TOKEN_KEY = 'maky_admin_token';
 
 type Booking = {
   id: string;
@@ -31,8 +26,13 @@ type Tab = 'termini' | 'novi';
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
+/** Bacamo je kad server vrati 401 — poziv iznad tada odjavljuje korisnika. */
+class UnauthorizedError extends Error {
+  constructor() { super('Sesija je istekla'); this.name = 'UnauthorizedError'; }
+}
+
 async function apiFetch(path: string, token: string, options?: RequestInit) {
-  return fetch(path, {
+  const res = await fetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -40,6 +40,32 @@ async function apiFetch(path: string, token: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
+  if (res.status === 401) throw new UnauthorizedError();
+  return res;
+}
+
+/** Poruka o grešci iz JSON odgovora, sa sigurnim fallbackom. */
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json() as { error?: string };
+    return data.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Provjerava `exp` iz JWT-a bez verifikacije potpisa — samo da izbjegnemo
+ * prikaz admin panela sa sigurno isteklim tokenom. Pravu provjeru radi server.
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const [, payload] = token.split('.');
+    const { exp } = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    return typeof exp === 'number' && exp * 1000 <= Date.now();
+  } catch {
+    return true; // neispravan token — tretiraj kao istekao
+  }
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
@@ -59,9 +85,13 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
-      const data = await res.json() as { token?: string; error?: string };
-      if (!res.ok) { setError(data.error ?? 'Greška'); return; }
-      onLogin(data.token!);
+      if (!res.ok) {
+        setError(await errorMessage(res, 'Prijava nije uspjela'));
+        return;
+      }
+      const data = await res.json() as { token?: string };
+      if (!data.token) { setError('Neispravan odgovor servera'); return; }
+      onLogin(data.token);
     } catch {
       setError('Greška pri povezivanju sa serverom');
     } finally {
@@ -171,7 +201,7 @@ function BookingCard({
             {booking.service}
           </div>
           <div className="text-xs text-neutral-400 mt-1 font-medium">
-            {booking.date.split('-').reverse().join('.')}
+            {formatDisplayDate(booking.date)}
           </div>
         </div>
 
@@ -217,7 +247,9 @@ function BookingCard({
 
 // ─── Add Booking Form ─────────────────────────────────────────────────────────
 
-function AddBookingForm({ token, onSuccess }: { token: string; onSuccess: () => void }) {
+function AddBookingForm({
+  token, onSuccess, onUnauthorized,
+}: { token: string; onSuccess: () => void; onUnauthorized: () => void }) {
   const [form, setForm] = useState({
     clientName: '', clientPhone: '', service: '', date: '', time: '',
   });
@@ -229,14 +261,25 @@ function AddBookingForm({ token, onSuccess }: { token: string; onSuccess: () => 
 
   useEffect(() => {
     if (!form.date) { setAvailableSlots([]); return; }
+
+    const controller = new AbortController();
     setSlotsLoading(true);
-    fetch(`/api/bookings/available?date=${form.date}`)
-      .then(r => r.json() as Promise<{ availableSlots: string[] }>)
+    fetch(`/api/bookings/available?date=${encodeURIComponent(form.date)}`, { signal: controller.signal })
+      .then(r => r.ok ? r.json() as Promise<{ availableSlots: string[] }> : Promise.reject(new Error('fetch')))
       .then(d => setAvailableSlots(d.availableSlots ?? []))
-      .catch(() => setAvailableSlots([]))
-      .finally(() => setSlotsLoading(false));
+      .catch((err: unknown) => {
+        if ((err as { name?: string })?.name !== 'AbortError') setAvailableSlots([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSlotsLoading(false);
+      });
     setForm(f => ({ ...f, time: '' }));
+
+    return () => controller.abort();
   }, [form.date]);
+
+  // Nedjeljom salon ne radi — ista pravila kao na javnoj strani.
+  const isClosedDay = !!form.date && weekdayOf(form.date) === CLOSED_WEEKDAY;
 
   const set = (k: keyof typeof form) => (v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -250,12 +293,15 @@ function AddBookingForm({ token, onSuccess }: { token: string; onSuccess: () => 
         method: 'POST',
         body: JSON.stringify(form),
       });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) { setError(data.error ?? 'Greška'); return; }
+      if (!res.ok) {
+        setError(await errorMessage(res, 'Termin nije dodan'));
+        return;
+      }
       setSuccess(true);
       setForm({ clientName: '', clientPhone: '', service: '', date: '', time: '' });
       setTimeout(() => { setSuccess(false); onSuccess(); }, 1500);
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedError) { onUnauthorized(); return; }
       setError('Greška pri slanju');
     } finally {
       setSubmitting(false);
@@ -338,7 +384,9 @@ function AddBookingForm({ token, onSuccess }: { token: string; onSuccess: () => 
             {availableSlots.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           {form.date && !slotsLoading && availableSlots.length === 0 && (
-            <p className="text-xs text-neutral-400 mt-1">Nema slobodnih termina za ovaj datum.</p>
+            <p className="text-xs text-neutral-400 mt-1">
+              {isClosedDay ? 'Nedjeljom salon ne radi.' : 'Nema slobodnih termina za ovaj datum.'}
+            </p>
           )}
         </div>
       </div>
@@ -385,8 +433,7 @@ function AdminCalendar({
   const firstDay = new Date(year, month, 1).getDay();
   const firstDayIndex = firstDay === 0 ? 6 : firstDay - 1;
 
-  const dateStr = (d: number) =>
-    `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const dateStr = (d: number) => toDateStr(new Date(year, month, d));
 
   return (
     <div className="bg-neutral-50 border border-neutral-200/60 rounded-2xl p-5">
@@ -440,7 +487,15 @@ function AdminCalendar({
 // ─── Main Admin Page ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('maky_admin_token'));
+  // Istekao token iz localStorage ne treba ni prikazati kao prijavljenu sesiju.
+  const [token, setToken] = useState<string | null>(() => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored || isTokenExpired(stored)) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return stored;
+  });
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [fetchError, setFetchError] = useState('');
@@ -448,41 +503,65 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('termini');
   const [showAddForm, setShowAddForm] = useState(false);
 
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setBookings([]);
+    setSelectedDate(null);
+  }, []);
+
   const fetchBookings = useCallback(async (t: string) => {
     setLoadingBookings(true);
     setFetchError('');
     try {
       const res = await apiFetch('/api/bookings', t);
-      if (res.status === 401) { handleLogout(); return; }
-      const data = await res.json() as Booking[] | { error: string };
-      if (Array.isArray(data)) setBookings(data);
-      else setFetchError((data as { error: string }).error);
-    } catch {
+      if (!res.ok) {
+        setFetchError(await errorMessage(res, 'Greška pri dohvatu rezervacija'));
+        return;
+      }
+      const data = await res.json() as unknown;
+      if (!Array.isArray(data)) {
+        setFetchError('Neispravan odgovor servera');
+        return;
+      }
+      setBookings(data as Booking[]);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) { handleLogout(); return; }
       setFetchError('Greška pri dohvatu rezervacija');
     } finally {
       setLoadingBookings(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handleLogout]);
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('maky_admin_token', token);
+      localStorage.setItem(TOKEN_KEY, token);
       fetchBookings(token);
     }
   }, [token, fetchBookings]);
 
   const handleLogin = (t: string) => setToken(t);
 
-  const handleLogout = () => {
-    localStorage.removeItem('maky_admin_token');
-    setToken(null);
-    setBookings([]);
-  };
-
+  /**
+   * Brisanje se potvrđuje TEK nakon uspješnog odgovora servera.
+   * Ranije se kartica uklanjala iz UI-ja bez provjere, pa je istekla sesija ili
+   * pad baze ostavljao termin u bazi dok je vlasnica mislila da je obrisan.
+   */
   const handleDelete = async (id: string) => {
     if (!token) return;
-    await apiFetch(`/api/bookings/${id}`, token, { method: 'DELETE' });
-    setBookings(prev => prev.filter(b => b.id !== id));
+    setFetchError('');
+    try {
+      const res = await apiFetch(`/api/bookings/${id}`, token, { method: 'DELETE' });
+      if (!res.ok && res.status !== 404) {
+        setFetchError(await errorMessage(res, 'Termin nije obrisan. Pokušajte ponovo.'));
+        return;
+      }
+      // 404 znači da ga više nema — uklanjanje iz liste je i tada ispravno.
+      setBookings(prev => prev.filter(b => b.id !== id));
+    } catch (err) {
+      if (err instanceof UnauthorizedError) { handleLogout(); return; }
+      setFetchError('Greška pri brisanju. Provjerite konekciju i pokušajte ponovo.');
+    }
   };
 
   if (!token) return <LoginScreen onLogin={handleLogin} />;
@@ -491,9 +570,11 @@ export default function AdminPage() {
     ? bookings.filter(b => b.date === selectedDate)
     : [...bookings].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayCount = bookings.filter(b => b.date === todayStr).length;
-  const upcomingCount = bookings.filter(b => b.date >= todayStr).length;
+  // toISOString() vraća UTC i noću bi prikazivao jučerašnji dan — koristimo
+  // lokalni datum salona (Europe/Belgrade).
+  const today = todayStr();
+  const todayCount = bookings.filter(b => b.date === today).length;
+  const upcomingCount = bookings.filter(b => b.date >= today).length;
 
   return (
     <div className="min-h-screen bg-blush">
@@ -593,6 +674,7 @@ export default function AdminPage() {
                       <AddBookingForm
                         token={token}
                         onSuccess={() => { fetchBookings(token); setShowAddForm(false); }}
+                        onUnauthorized={handleLogout}
                       />
                     </div>
                   </motion.div>
@@ -614,7 +696,7 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="serif text-2xl font-bold">
                 {selectedDate
-                  ? `Termini: ${selectedDate.split('-').reverse().join('.')}`
+                  ? `Termini: ${formatDisplayDate(selectedDate)}`
                   : 'Svi termini'}
               </h2>
               <button
@@ -681,7 +763,7 @@ export default function AdminPage() {
 
                 <h3 className="font-bold text-neutral-700 text-sm uppercase tracking-wider mb-3">
                   {selectedDate
-                    ? `Termini — ${selectedDate.split('-').reverse().join('.')}`
+                    ? `Termini — ${formatDisplayDate(selectedDate)}`
                     : 'Svi termini'}
                 </h3>
 
@@ -715,6 +797,7 @@ export default function AdminPage() {
                 <AddBookingForm
                   token={token}
                   onSuccess={() => { fetchBookings(token); setActiveTab('termini'); }}
+                  onUnauthorized={handleLogout}
                 />
               </motion.div>
             )}

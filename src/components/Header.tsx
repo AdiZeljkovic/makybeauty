@@ -1,18 +1,9 @@
-import { motion } from 'motion/react';
 import { Instagram, Phone } from 'lucide-react';
-import { useState, useEffect } from 'react';
+
+// Ranije je ovdje stajao scroll listener koji je punio `isScrolled` state koji
+// se nigdje nije koristio — setState na svaki scroll event bez ikakvog efekta.
 
 export default function Header() {
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const navItems = [
     { name: 'Početna', href: '#hero' },
     { name: 'Usluge', href: '#services' },

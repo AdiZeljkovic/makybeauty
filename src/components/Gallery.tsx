@@ -52,9 +52,15 @@ export default function Gallery() {
             transition={{ delay: i * 0.05, duration: 0.8 }}
             className={`aspect-square bg-neutral-900 overflow-hidden relative group rounded-[2rem] shadow-[0_10px_30px_rgb(0,0,0,0.06)] cursor-pointer`}
           >
-            <img 
-              src={img.url} 
-              alt="Salon work" 
+            <img
+              src={img.url}
+              srcSet={`${img.url.replace('w=800', 'w=400')} 400w, ${img.url} 800w`}
+              sizes="(max-width: 1024px) 50vw, 25vw"
+              alt={`Rad iz salona Maky Beauty Bar ${i + 1}`}
+              width={800}
+              height={800}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
               referrerPolicy="no-referrer"
             />

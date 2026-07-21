@@ -8,8 +8,17 @@ export default function Hero() {
           initial={{ scale: 1.2 }}
           animate={{ scale: 1 }}
           transition={{ duration: 10, ease: "easeOut" }}
-          src="https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=2670&auto=format&fit=crop" 
-          alt="Beauty Bar" 
+          src="https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=1600&auto=format&fit=crop"
+          srcSet="https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=800&auto=format&fit=crop 800w,
+                  https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=1600&auto=format&fit=crop 1600w,
+                  https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=2400&auto=format&fit=crop 2400w"
+          sizes="100vw"
+          alt="Enterijer salona Maky Beauty Bar"
+          width={1600}
+          height={600}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
