@@ -24,7 +24,10 @@ function required(name: string, minLength = 1): string {
 }
 
 export const DATABASE_URL = required('DATABASE_URL');
-export const ADMIN_PASSWORD = required('ADMIN_PASSWORD', isProd ? 12 : 4);
+// Minimum spušten sa 12 na 7 na izričit zahtjev vlasnika, da bi se zadržala
+// postojeća admin lozinka. Admin panel je javno dostupan, pa duža lozinka
+// ostaje preporuka — vratiti na 12 čim se lozinka promijeni.
+export const ADMIN_PASSWORD = required('ADMIN_PASSWORD', isProd ? 7 : 4);
 export const JWT_SECRET = required('JWT_SECRET', isProd ? 32 : 16);
 export const PORT = Number(process.env.PORT) || 3001;
 

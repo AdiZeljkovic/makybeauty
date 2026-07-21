@@ -1,0 +1,35 @@
+# Maky Beauty Bar — app + its own PostgreSQL.
+# Deployed on the Luminor/FuturaOS server via Dokploy (compose from Git).
+# Secrets come from Dokploy's compose environment, never from this file.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: maky_db
+      POSTGRES_USER: maky_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maky_user -d maky_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://maky_user:${DB_PASSWORD}@db:5432/maky_db
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: "3001"
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
