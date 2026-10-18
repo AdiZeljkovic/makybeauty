@@ -16,6 +16,12 @@ export default function Footer() {
         <div className="text-sm text-neutral-400 text-center md:text-right font-medium">
           <p>© {new Date().getFullYear()} Maky Beauty Bar • Zrenjanin</p>
           <p className="mt-2 text-neutral-300">Kreirano sa ljubavlju i strašću</p>
+          <p className="mt-2">
+            Website by{" "}
+            <a href="https://luminor.solutions" target="_blank" rel="nofollow noopener" className="text-neutral-500 hover:text-neutral-900 transition-all duration-300">
+              Luminor.Solutions
+            </a>
+          </p>
         </div>
       </div>
     </footer>
